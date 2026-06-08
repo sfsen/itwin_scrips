@@ -5,3 +5,5 @@ gdal_translate -of GTiff -co TILED=YES -co COMPRESS=DEFLATE -co BIGTIFF=YES dtm_
 gdalwarp -t_srs EPSG:5972 "dtm_10m_merged.tif" "5972_dtm_10m_merged.tif"
 
 gdal_translate -of GTX "5972_dtm_10m_merged.tif" "5972_dtm_10m_merged.gtx"
+
+gdaladdo -r average dtm_10m_merged.tif 2 4 8 16
