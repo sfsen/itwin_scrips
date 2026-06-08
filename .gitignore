@@ -1,2 +1,5 @@
 *.tif
 *.aux.xml
+*.vrt
+*.tif.aux.xml
+*.gtx
