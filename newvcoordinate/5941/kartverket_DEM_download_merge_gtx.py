@@ -18,6 +18,16 @@ import sys
 import time
 from pathlib import Path
 
+try:
+    from osgeo import gdal
+except ImportError:
+    sys.stderr.write(
+        "ERROR: GDAL Python bindings are required but not available.\n"
+        "Install them in this Python environment, e.g. with micromamba or pip.\n"
+        "Then rerun this script.\n"
+    )
+    sys.exit(1)
+
 import requests
 from tqdm import tqdm
 import signal
@@ -337,46 +347,53 @@ def main():
     
     # ── Gdal functions ───────────────────────────────────────────────────────────────
     osgeo4w_bat = r"C:\OSGeo4W\OSGeo4W.bat"
+    osgeo4w_bin = r"C:\OSGeo4W\bin"
+    # Extract environment variables from OSGeo4W.bat (run once)
+    env = os.environ.copy()
 
-    # Step 1: Build VRT
-    vrt_path = out_dir / f"{dem_type}_{res:.0f}m.vrt"
-    inner_cmd = fr'gdalbuildvrt -overwrite "{vrt_path}" "{out_dir}/*.tif"'
-    cmd = f'cmd /c "{osgeo4w_bat} && {inner_cmd}"'
-    print(f"Running command: {cmd}")
-    proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-    print("Return code:", proc.returncode)
-    print("STDOUT:\n", proc.stdout)
-    print("STDERR:\n", proc.stderr)
+    try:
+        # Step 1: Build VRT
+        vrt_path = out_dir / f"{dem_type}_{res:.0f}m.vrt"
+        inner_cmd = fr'gdalbuildvrt -overwrite "{vrt_path}" "{out_dir}/*.tif"'
+        cmd = f'cmd /c "{osgeo4w_bat} && {inner_cmd}"'
+        print(f"Running command: {cmd}")
+        proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        print("Return code:", proc.returncode)
+        print("STDOUT:\n", proc.stdout)
+        print("STDERR:\n", proc.stderr)
 
-    # Step 2: Translate to GTiff
-    translated_tif = out_dir / f"{dem_type}_{res:.0f}m_merged.tif"
-    inner_cmd = fr'gdal_translate -of GTiff -co TILED=YES -co COMPRESS=DEFLATE -co BIGTIFF=YES "{vrt_path}" "{translated_tif}"'
-    cmd = f'cmd /c "{osgeo4w_bat} && {inner_cmd}"'
-    print(f"Running command: {cmd}")
-    proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-    print("Return code:", proc.returncode)
-    print("STDOUT:\n", proc.stdout)
-    print("STDERR:\n", proc.stderr)
+        # Step 2: Translate to GTiff
+        translated_tif = out_dir / f"{dem_type}_{res:.0f}m_merged.tif"
+        inner_cmd = fr'gdal_translate -of GTiff -co TILED=YES -co COMPRESS=DEFLATE -co BIGTIFF=YES "{vrt_path}" "{translated_tif}"'
+        cmd = f'cmd /c "{osgeo4w_bat} && {inner_cmd}"'
+        print(f"Running command: {cmd}")
+        proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        print("Return code:", proc.returncode)
+        print("STDOUT:\n", proc.stdout)
+        print("STDERR:\n", proc.stderr)
 
-    # Step 3: Change crs to compound with vertical datum
-    reprojected_tif = out_dir / f"EPSG{COMPOUND_CRS_EPSG}_{dem_type}_{res:.0f}m_merged.tif"
-    inner_cmd = fr'gdalwarp -t_srs EPSG:{COMPOUND_CRS_EPSG} "{translated_tif}" "{reprojected_tif}"'
-    cmd = f'cmd /c "{osgeo4w_bat} && {inner_cmd}"'
-    print(f"Running command: {cmd}")
-    proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-    print("Return code:", proc.returncode)
-    print("STDOUT:\n", proc.stdout)
-    print("STDERR:\n", proc.stderr)
+        # Step 3: Change crs to compound with vertical datum
+        reprojected_tif = out_dir / f"EPSG{COMPOUND_CRS_EPSG}_{dem_type}_{res:.0f}m_merged.tif"
+        inner_cmd = fr'gdalwarp -t_srs EPSG:{COMPOUND_CRS_EPSG} "{translated_tif}" "{reprojected_tif}"'
+        cmd = f'cmd /c "{osgeo4w_bat} && {inner_cmd}"'
+        print(f"Running command: {cmd}")
+        proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        print("Return code:", proc.returncode)
+        print("STDOUT:\n", proc.stdout)
+        print("STDERR:\n", proc.stderr)
 
-    #Step 4: Make .gtx with gdal_translate (copies metadata and applies compression)
-    gtx_path = out_dir / f"EPSG{COMPOUND_CRS_EPSG}_{dem_type}_{res:.0f}m_merged.gtx"
-    inner_cmd = fr'gdal_translate -of GTX "{reprojected_tif}" "{gtx_path}"'
-    cmd = f'cmd /c "{osgeo4w_bat} && {inner_cmd}"'
-    print(f"Running command: {cmd}")
-    proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-    print("Return code:", proc.returncode)
-    print("STDOUT:\n", proc.stdout)
-    print("STDERR:\n", proc.stderr)
+        #Step 4: Make .gtx with gdal_translate (copies metadata and applies compression)
+        gtx_path = out_dir / f"EPSG{COMPOUND_CRS_EPSG}_{dem_type}_{res:.0f}m_merged.gtx"
+        inner_cmd = fr'gdal_translate -of GTX "{reprojected_tif}" "{gtx_path}"'
+        cmd = f'cmd /c "{osgeo4w_bat} && {inner_cmd}"'
+        print(f"Running command: {cmd}")
+        proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        print("Return code:", proc.returncode)
+        print("STDOUT:\n", proc.stdout)
+        print("STDERR:\n", proc.stderr)
+
+    except Exception as e:
+        print(f"Error running GDAL command sequence: {e}")
 
     # Cleanup intermediate files
     # Comment out the following lines if you want to keep the VRT and merged GeoTIFF
